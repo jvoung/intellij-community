@@ -20,15 +20,19 @@
 package com.intellij.util.containers;
 
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.util.ArrayUtil;
 import com.intellij.util.Function;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.Processor;
+import com.intellij.util.SmartList;
 import gnu.trove.THashMap;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class MostlySingularMultiMap<K, V> implements Serializable {
   private static final long serialVersionUID = 2784448345881807109L;
@@ -49,13 +53,12 @@ public class MostlySingularMultiMap<K, V> implements Serializable {
     if (current == null) {
       myMap.put(key, value);
     }
-    else if (current instanceof Object[]) {
-      Object[] curArr = (Object[])current;
-      Object[] newArr = ArrayUtil.append(curArr, value, ArrayUtil.OBJECT_ARRAY_FACTORY);
-      myMap.put(key, newArr);
+    else if (current instanceof SmartList) {
+      SmartList curList = (SmartList) current;
+      curList.add(value);
     }
     else {
-      myMap.put(key, new Object[]{current, value});
+      myMap.put(key, new SmartList(current, value));
     }
   }
 
@@ -64,11 +67,9 @@ public class MostlySingularMultiMap<K, V> implements Serializable {
     if (current == null) {
       return false;
     }
-    if (current instanceof Object[]) {
-      Object[] curArr = (Object[])current;
-      Object[] newArr = ArrayUtil.remove(curArr, value, ArrayUtil.OBJECT_ARRAY_FACTORY);
-      myMap.put(key, newArr);
-      return newArr.length == curArr.length-1;
+    if (current instanceof SmartList) {
+      SmartList curList = (SmartList) current;
+      return curList.remove(value);
     }
 
     if (value.equals(current)) {
@@ -97,8 +98,8 @@ public class MostlySingularMultiMap<K, V> implements Serializable {
   }
 
   private boolean processValue(@NotNull Processor<? super V> p, Object v) {
-    if (v instanceof Object[]) {
-      for (Object o : (Object[])v) {
+    if (v instanceof SmartList) {
+      for (Object o : (SmartList)v) {
         if (!p.process((V)o)) return false;
       }
     }
@@ -128,7 +129,7 @@ public class MostlySingularMultiMap<K, V> implements Serializable {
   public int valuesForKey(@NotNull K key) {
     Object current = myMap.get(key);
     if (current == null) return 0;
-    if (current instanceof Object[]) return ((Object[])current).length;
+    if (current instanceof SmartList) return ((SmartList)current).size();
     return 1;
   }
 
@@ -142,8 +143,8 @@ public class MostlySingularMultiMap<K, V> implements Serializable {
   protected List<V> rawValueToCollection(Object value) {
     if (value == null) return Collections.emptyList();
 
-    if (value instanceof Object[]) {
-      return (List<V>)Arrays.asList((Object[])value);
+    if (value instanceof SmartList) {
+      return (SmartList<V>)value;
     }
 
     return Collections.singletonList((V)value);
@@ -159,7 +160,7 @@ public class MostlySingularMultiMap<K, V> implements Serializable {
       @Override
       public String fun(Map.Entry<K, Object> entry) {
         Object value = entry.getValue();
-        String s = (value instanceof Object[] ? Arrays.asList((Object[])value) : Arrays.asList(value)).toString();
+        String s = (value instanceof SmartList ? ((SmartList)value) : Collections.singletonList(value)).toString();
         return entry.getKey() + ": " + s;
       }
     }, "; ") + "}";
@@ -193,20 +194,24 @@ public class MostlySingularMultiMap<K, V> implements Serializable {
         myMap.put(key, value);
       }
 
-      else if (o instanceof Object[]) {
-        if (value instanceof Object[]) {
-          myMap.put(key, ArrayUtil.mergeArrays(((Object[])o), ((Object[])value), ArrayUtil.OBJECT_ARRAY_FACTORY));
+      else if (o instanceof SmartList) {
+        SmartList oList = (SmartList)o;
+        if (value instanceof SmartList) {
+          oList.addAll((SmartList)value);
         }
         else {
-          myMap.put(key, ArrayUtil.append(((Object[])o), value, ArrayUtil.OBJECT_ARRAY_FACTORY));
+          oList.add(value);
         }
       }
       else {
-        if (value instanceof Object[]) {
-          myMap.put(key, ArrayUtil.prepend(o, ((Object[])value), ArrayUtil.OBJECT_ARRAY_FACTORY));
+        if (value instanceof SmartList) {
+          SmartList newList = new SmartList(o);
+          newList.addAll((SmartList)value);
+          myMap.put(key, newList);
         }
         else {
-          myMap.put(key, new Object[] {o, value});
+          SmartList newList = new SmartList(o, value);
+          myMap.put(key, newList);
         }
       }
     }

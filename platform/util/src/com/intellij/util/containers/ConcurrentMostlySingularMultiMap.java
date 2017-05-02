@@ -15,8 +15,8 @@
  */
 package com.intellij.util.containers;
 
-import com.intellij.util.ArrayUtil;
 import com.intellij.util.ConcurrencyUtil;
+import com.intellij.util.SmartList;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
@@ -39,14 +39,15 @@ public class ConcurrentMostlySingularMultiMap<K, V> extends MostlySingularMultiM
       if (current == null) {
         if (ConcurrencyUtil.cacheOrGet(map, key, value) == value) break;
       }
-      else if (current instanceof Object[]) {
-        Object[] curArr = (Object[])current;
-        Object[] newArr = ArrayUtil.append(curArr, value, ArrayUtil.OBJECT_ARRAY_FACTORY);
-        if (map.replace(key, curArr, newArr)) break;
+      else if (current instanceof SmartList) {
+        SmartList curList = (SmartList)current;
+        SmartList newList = new SmartList(curList);
+        newList.add(value);
+        if (map.replace(key, curList, newList)) break;
       }
       else {
-        Object[] newArr = {current, value};
-        if (map.replace(key, current, newArr)) break;
+        SmartList newList = new SmartList(current, value);
+        if (map.replace(key, current, newList)) break;
       }
     }
   }
@@ -58,8 +59,8 @@ public class ConcurrentMostlySingularMultiMap<K, V> extends MostlySingularMultiM
 
   public boolean replace(@NotNull K key, @NotNull Collection<V> expectedValue, @NotNull Collection<V> newValue) {
     ConcurrentMap<K, Object> map = (ConcurrentMap<K, Object>)myMap;
-    Object[] newArray = ArrayUtil.toObjectArray(newValue);
-    Object newValueToPut = newArray.length == 0 ? null : newArray.length == 1 ? newArray[0] : newArray;
+    SmartList newList = new SmartList(newValue);
+    Object newValueToPut = newList.isEmpty() ? null : newList.size() == 1 ? newList.get(0) : newList;
 
     Object oldValue = map.get(key);
     List<V> oldCollection = rawValueToCollection(oldValue);
